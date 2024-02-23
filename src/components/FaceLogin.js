@@ -4,11 +4,24 @@ import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { MdAddAPhoto } from "react-icons/md";
 import { FaCamera, FaFileUpload } from "react-icons/fa";
+import * as faceapi from "@vladmandic/face-api";
 
 import { CommonData } from "../utils/commonUtils";
 import { uploadPhoto } from "../redux/faceLoginSlice";
 
 const FaceLogin = () => {
+  const [imgSrc, setImgSrc] = useState(null);
+
+  // Add reference to the webcam
+  // access the webcam instance and take a screenshot
+  const webcamRef = useRef(null);
+  const canvasRef = useRef(null); // Add a canvas ref
+
+  const dispatch = useDispatch();
+  const { error, upload, picLoading } = useSelector((state) => state.faceLogin);
+  // Get the loading state for initSessionID
+  const { isLoading } = useSelector((state) => state.init);
+
   const {
     time,
     ip,
@@ -23,21 +36,64 @@ const FaceLogin = () => {
     redirectUrl,
   } = CommonData();
 
-  // Add reference to the webcam
-  // access the webcam instance and take a screenshot
-  const webcamRef = useRef(null);
-  const [imgSrc, setImgSrc] = useState(null);
-  const dispatch = useDispatch();
-  const { error, upload, picLoading } = useSelector((state) => state.faceLogin);
-
-  // Get the loading state for initSessionID
-  const { isLoading } = useSelector((state) => state.init);
+  // face recognition models
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+        await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
+        await faceapi.nets.faceRecognitionNet.loadFromUri("/models");
+        console.log("Models loaded successfully");
+      } catch (error) {
+        console.error("Error loading models:", error);
+      }
+    };
+    loadModels();
+  }, []);
 
   // create a capture function
-  const handleCapture = useCallback(() => {
+  const handleCapture = useCallback(async () => {
     const imageSrc = webcamRef.current.getScreenshot();
     setImgSrc(imageSrc);
-  }, [webcamRef, setImgSrc]);
+
+    try {
+      const detections = await faceapi
+        .detectAllFaces(imageSrc)
+        .withFaceLandmarks();
+
+      console.log("Detections:", detections);
+
+      // Access your canvas
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw rectangles around detected faces
+      detections.forEach((detection, landmarks) => {
+        // Draw rectangle
+        const box = detection.box;
+        ctx.strokeStyle = "blue";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+        // Draw landmarks
+        // faceapi.draw.drawFaceLandmarks(canvas, landmarks, { drawLines: true });
+
+        // Draw landmarks
+        landmarks.positions.forEach((point) => {
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI, true);
+          ctx.fillStyle = "blue";
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "blue";
+          ctx.stroke();
+        });
+      });
+    } catch (error) {
+      console.error("Error detecting faces:", error);
+    }
+  }, [webcamRef, setImgSrc, canvasRef]);
 
   const handleRetake = () => {
     setImgSrc(null);
@@ -77,7 +133,7 @@ const FaceLogin = () => {
 
       console.log("Data", imgSrc, additionalData);
       // Dispatch the action with both formData and additional data
-      await dispatch(uploadPhoto({ formData, ...additionalData }));
+      await dispatch(uploadPhoto(formData));
     } catch (error) {
       // Handle error
       console.error("Error uploading photo:", error);
@@ -143,6 +199,14 @@ const FaceLogin = () => {
               height={240}
               className="mb-2 rounded-md"
             />
+            {/* Canvas for drawing overlay */}
+            <canvas
+              ref={canvasRef}
+              width={320}
+              height={240}
+              style={{ position: "absolute", top: 0, left: 0 }}
+            ></canvas>
+
             <button
               type="button"
               className="flex items-center justify-center w-full h-10 px-4 font-semibold rounded-md border bg-green-500 hover:bg-green-700 text-white"

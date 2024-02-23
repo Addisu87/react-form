@@ -38,7 +38,8 @@ export const loginUser = createAsyncThunk(
       });
 
       if (response?.data.msg === "success") {
-        return response?.data;
+        console.log("Response", response.data);
+        // return response?.data;
       }
     } catch (error) {
       throw new Error(error.response?.data.info);

